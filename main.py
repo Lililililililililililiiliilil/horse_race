@@ -33,12 +33,14 @@ class HorseRace(QtWidgets.QMainWindow):
     def __init__(self):
         super().__init__()
 
+        self.names = ["Тайфун", "Юджин", "Одиссея", "Буцефал", "Зевс", "Артес", "Виконт", "Венера", "Гроза", "Зеньятта"]
+
         self.reg_window = None
         self.login_window = None
         self.horses = []
         self.player_id = None
         self.player_pass = None
-        self.horses_names = ["Тайфун", "Юджин", "Одиссея", "Буцефал", "Зевс"]
+        self.horses_names = []
         self.position = [len(self.horses_names)] * len(self.horses_names)
         self.player = "Guest"
         self.bets = {}
@@ -50,7 +52,7 @@ class HorseRace(QtWidgets.QMainWindow):
         self.init_ui()
         self.get_random_bets()
 
-        self.add_horses(self.horses_names)
+        self.add_horses()
 
     def init_ui(self):
         self.setWindowTitle("Ипподром")
@@ -69,9 +71,18 @@ class HorseRace(QtWidgets.QMainWindow):
         self.horizontalLayout = QtWidgets.QHBoxLayout(self.centralwidget)
         self.verticalLayout = QtWidgets.QVBoxLayout()
 
+        horse_select_layout = QtWidgets.QHBoxLayout()
+
         self.comboBox = QtWidgets.QComboBox(self.centralwidget)
         self.comboBox.activated.connect(self.select_horse)
-        self.verticalLayout.addWidget(self.comboBox)
+        horse_select_layout.addWidget(self.comboBox)
+        self.horses_number = QtWidgets.QSpinBox()
+        self.horses_number.setRange(1, 10)
+        self.horses_number.valueChanged.connect(self.add_horses)
+        self.horses_number.valueChanged.connect(self.update_horse_table)
+        horse_select_layout.addWidget(self.horses_number)
+
+        self.verticalLayout.addLayout(horse_select_layout)
 
         self.horse_label = QtWidgets.QLabel(self.centralwidget)
         self.horse_label.setPixmap(QtGui.QPixmap("race.jpeg").scaled(QSize(400, 300)))
@@ -98,6 +109,7 @@ class HorseRace(QtWidgets.QMainWindow):
 
         self.bet_button = QtWidgets.QPushButton(self.centralwidget)
         self.bet_button.setText("Заключить пари")
+        self.bet_button.clicked.connect(self.get_random_bets)
         self.bet_button.clicked.connect(self.place_bet)
 
         self.start_button = QtWidgets.QPushButton(self.centralwidget)
@@ -123,7 +135,7 @@ class HorseRace(QtWidgets.QMainWindow):
         right_layout = QtWidgets.QVBoxLayout()
         right_layout.addLayout(reg_layout)
 
-        self.horse_position_table = QTableWidget(5, 3, self.centralwidget)
+        self.horse_position_table = QTableWidget(10, 3, self.centralwidget)
         self.horse_position_table.setHorizontalHeaderLabels(["Лошадь", "Позиция", "Ставка"])
         self.update_horse_table()
         right_layout.addWidget(self.horse_position_table)
@@ -138,10 +150,12 @@ class HorseRace(QtWidgets.QMainWindow):
 
         self.show()
 
-    def add_horses(self, horse_names):
-        for name in horse_names:
-            image_path = f"horse_{len(self.horses) + 1}.png"
-            horse = Horse(name, image_path)
+    def add_horses(self):
+        self.horses = []
+        self.comboBox.clear()
+        for i in range(int(self.horses_number.text())):
+            image_path = "horse_1.jpeg"
+            horse = Horse(self.names[i], image_path)
             self.horses.append(horse)
             self.comboBox.addItem(horse.name)
 
@@ -164,9 +178,10 @@ class HorseRace(QtWidgets.QMainWindow):
         self.bet_button.setDisabled(True)
 
         # Если игрок уже сделал ставку на эту лошадь, удаляем старую ставку
-        if -1 in self.bets[horse][1]:
-            self.total_bet_amount -= bet_amount
-            self.bets.pop(horse)
+        if horse in self.bets:
+            if -1 in self.bets[horse][1]:
+                self.total_bet_amount -= bet_amount
+                self.bets.pop(horse)
 
         self.balance -= bet_amount
         self.update_balance()
@@ -182,25 +197,25 @@ class HorseRace(QtWidgets.QMainWindow):
         self.update_horse_table()
 
     def start_race(self):
-        distance = [0] * 5
+        distance = [0] * len(self.horses)
 
         for i in range(1000):
-            for j in range(5):
+            for j in range(len(self.horses)):
                 k = random.randint(0, 9)
                 distance[j] += self.horses[j].speeds[k]
 
             self.position = calculate_position(distance)
 
             self.update_horse_position()
-            time.sleep(0.01)
 
         winner = 0
         for i in range(len(self.position)):
             if self.position[i] == 1:
                 winner = i
+                print(i)
                 break
 
-        winner_name = self.horses_names[winner]
+        winner_name = self.horses[winner].name
         winner_bets_info = self.bets[winner_name]
         print(winner_name)
         winner_bets = winner_bets_info[0] * (1 - self.ippodromo_share)
@@ -210,14 +225,18 @@ class HorseRace(QtWidgets.QMainWindow):
         self.update_balance()
 
     def update_balance(self):
-        self.player_label.setText("Player: " + self.player + " - " + str(self.balance) + "$")
+        self.player_label.setText("Игрок: " + self.player + " - " + str(self.balance) + "$")
 
     def update_horse_table(self):
-        for i in range(5):
-            name = QTableWidgetItem(self.horses_names[i])
+        self.horse_position_table.clear()
+        self.horse_position_table.setHorizontalHeaderLabels(["Лошадь", "Позиция", "Ставка"])
+        self.position = [len(self.horses)] * len(self.horses)
+
+        for i in range(len(self.horses)):
+            name = QTableWidgetItem(self.horses[i].name)
             position = QTableWidgetItem(str(self.position[i]))
-            if self.horses_names[i] in self.bets:
-                bet = QTableWidgetItem(str(self.bets[self.horses_names[i]][0]))
+            if self.horses[i].name in self.bets:
+                bet = QTableWidgetItem(str(self.bets[self.horses[i].name][0]))
             else:
                 bet = QTableWidgetItem("0")
             self.horse_position_table.setItem(i, 0, name)
@@ -225,21 +244,27 @@ class HorseRace(QtWidgets.QMainWindow):
             self.horse_position_table.setItem(i, 2, bet)
 
     def update_horse_position(self):
-        for i in range(5):
+        k = 0
+        for i in range(len(self.horses)):
             position = QTableWidgetItem(str(self.position[i]))
             self.horse_position_table.setItem(i, 1, position)
+        for i in range(100000):
+            k += 1
+        QtCore.QTimer.singleShot(1, self.update_horse_position)
 
     def get_random_bets(self):
-        for i in range(10):
-            id = random.randint(0, len(self.horses_names) - 1)
-            horse_name = self.horses_names[id]
-            bet = random.randint(100, 1000)
-            if horse_name in self.bets:
-                self.bets[horse_name][0] += bet
-                self.bets[horse_name][1].append(i)
-            else:
-                self.bets[horse_name] = [bet, [i]]
-            self.total_bet_amount += bet
+        if len(self.horses) > 0:
+            for i in range(10):
+                id = random.randint(0, len(self.horses) - 1)
+                horse_name = self.horses[id].name
+                bet = random.randint(100, 1000)
+                if horse_name in self.bets:
+                    self.bets[horse_name][0] += bet
+                    self.bets[horse_name][1].append(i)
+                else:
+                    self.bets[horse_name] = [bet, [i]]
+                self.total_bet_amount += bet
+
 
     def show_login_window(self):
         self.login_window = LoginWindow()
